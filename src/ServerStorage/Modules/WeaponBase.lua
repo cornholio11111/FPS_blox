@@ -31,7 +31,7 @@ function WeaponBase.new(Player : Player, Weapon : Model | Folder, WeaponProperti
     
 end
 
-function WeaponBase:AttachWeapon(Weapon : Model | Folder, Arms : Model)
+function WeaponBase:ChangeFiringMode(Player : Player,CurrentMode : string | StringValue, NewMode : string | StringValue)
     
 end
 
