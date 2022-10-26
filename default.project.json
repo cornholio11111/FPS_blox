@@ -1,0 +1,56 @@
+{
+  "name": "FPSGame",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Modules": {
+        "$path": "src/ReplicatedStorage/Modules"
+      },
+
+      "Core": {
+        "$path": "src/ReplicatedStorage/Core"
+      },
+
+      "Packages": {
+        "$path": "src/ReplicatedStorage/Packages"
+      }
+    },
+
+    "ReplicatedFirst": {
+      "$path": "src/ReplicatedFirst"
+    },
+
+    "ServerScriptService": {
+      "$path": "src/ServerScriptService_"
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      },
+
+      "StarterCharacterScripts": {
+        "$path": "src/StarterPlayer/StarterCharacterScripts"
+      }
+    },
+
+    "ServerStorage": {
+      "Modules": {
+          "$path": "src/ServerStorage/Modules"
+      }
+    },
+
+    "Workspace": {
+      "$properties": { 
+        "FilteringEnabled": true
+      }
+    },
+
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}
