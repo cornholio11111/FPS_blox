@@ -8,17 +8,9 @@
         "$path": "src/ReplicatedStorage/Modules"
       },
 
-      "Core": {
-        "$path": "src/ReplicatedStorage/Core"
-      },
-
       "Packages": {
         "$path": "src/ReplicatedStorage/Packages"
       }
-    },
-
-    "ReplicatedFirst": {
-      "$path": "src/ReplicatedFirst"
     },
 
     "ServerScriptService": {
@@ -42,18 +34,6 @@
 
       "Modules": {
           "$path": "src/ServerStorage/Modules"
-      }
-    },
-
-    "Workspace": {
-      "$properties": { 
-        "FilteringEnabled": true
-      }
-    },
-
-    "SoundService": {
-      "$properties": {
-        "RespectFilteringEnabled": true
       }
     }
   }

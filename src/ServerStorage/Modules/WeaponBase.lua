@@ -27,12 +27,12 @@ export type WeaponProperties = {
 -- ## MODULE ## --
 local WeaponBase = {}
 
-function WeaponBase.new(Player : Player, Weapon : Model | Folder, WeaponProperties)
+function WeaponBase.new(Player : Player, Weapon : Model | Folder, WeaponProperties : WeaponProperties)
     
 end
 
 function WeaponBase:ChangeFiringMode(Player : Player,CurrentMode : string | StringValue, NewMode : string | StringValue)
-    
+    print("WTF")
 end
 
 return WeaponBase
