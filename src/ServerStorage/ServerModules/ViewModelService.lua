@@ -9,7 +9,7 @@ local FastCast = require(ReplicatedStorage.Dictionaries.FastCast)
 local WeaponProperties = require(ReplicatedStorage.Dictionaries.WeaponProperties)
 
 -- ## VARIABLES ## --
-local BULLET_GRAVITY = Vector3.new(0, -workspace.Gravity / 4, 0)
+local BULLET_GRAVITY = Vector3.new(0, -workspace.Gravity / 15, 0)
 local BULLET_SPEED = 100
 local BULLET_SIZE = .05
 
@@ -65,9 +65,12 @@ function ViewModelService:KnitInit()
 				Part.Parent = workspace.Raycast_Ignore
 				
 				if result.Instance.Parent:IsA("Model") then
-					local Humanoid = result.Instance.Parent:FindFirstChildOfClass("Humanoid")
-					if Humanoid then
-						Humanoid:TakeDamage(WeaponProperties[WeaponName]["DefaultDamage"])
+					local Model = result.Instance:FindFirstAncestorOfClass("Model")
+					if Model then
+						local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+						if Humanoid then
+								Humanoid:TakeDamage(WeaponProperties[WeaponName]["DefaultDamage"])
+						end
 					end
 				end
 
@@ -83,5 +86,19 @@ end
 function ViewModelService:KnitStart()
 	warn('[DEBUG] Loaded Service: ViewModelService')
 end
+
+Players.PlayerAdded:Connect(function(player)
+	player.Chatted:Connect(function(Message)
+		local LowerMessage = Message:lower()
+		if LowerMessage == "/debug" then
+			FastCast.DebugLogging = not FastCast.DebugLogging
+			FastCast.VisualizeCasts = not FastCast.VisualizeCasts
+
+			if FastCast.VisualizeCasts == false then
+				workspace.Terrain:WaitForChild("FastCastVisualizationObjects"):ClearAllChildren()
+			end
+		end
+	end)
+end)
 
 return ViewModelService

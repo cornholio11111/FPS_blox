@@ -11,10 +11,7 @@ local Animations = Assets:WaitForChild("Animations")
 local AnimationsController = Knit.CreateController({
 	Name = "CharacterAnimations",
 	Animator = nil,
-	LoadedAnimations = {
-		VM = {},
-		Character = {},
-	},
+	LoadedAnimations = {},
 })
 
 function AnimationsController:ClearLoadedAnimations()

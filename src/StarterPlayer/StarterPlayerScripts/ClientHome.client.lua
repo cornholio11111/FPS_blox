@@ -1,21 +1,12 @@
-local Knit = require(game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Knit"))
+-- ## SERVICES ## --
+local UserInputService = game:GetService('UserInputService')
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
+local Players = game:GetService('Players')
 
-Knit.AddControllers(game:GetService("ReplicatedStorage").Controllers)
-Knit.Start():andThen(function()
-	warn("Client Started")
-end):catch(warn)-- From a LocalScript
-local Knit = require(game:GetService("ReplicatedStorage").Packages.Knit)
-Knit.Start():catch(warn):await()
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
-local PointsService = Knit.GetService("PointsService")
-
-local function PointsChanged(points)
-    print("My points:", points)
-end
-
--- Get points and listen for changes:
-PointsService:GetPoints():andThen(PointsChanged)
-PointsService.PointsChanged:Connect(PointsChanged)
-
--- Ask server to give points randomly:
-PointsService.GiveMePoints:Fire()
+Knit.AddControllers(ReplicatedStorage.Controllers)
+    Knit.Start():andThen(function()
+        warn("Client Started")
+ end):catch(warn)

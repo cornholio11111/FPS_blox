@@ -18,6 +18,7 @@ local CharacterAnimator = Humanoid:WaitForChild("Animator")
 -- ## MODULES ## --
 local Packages = ReplicatedStorage.Packages
 local Knit = require(Packages.Knit)
+local Spring = require(Packages.Knit.Spring)
 local ParticleController
 local CharacterAnimationsController
 local AudioService
@@ -25,13 +26,18 @@ local ViewModelService
 local WeaponProperties = require(ReplicatedStorage.Dictionaries.WeaponProperties)
 
 -- ## MATH ## --
-local raycastParams = RaycastParams.new()
 local CFrame_Zero = CFrame.new()
-local swayOffset = CFrame.new()
-local multiplier = .8
+local ANIMATION_AIM_OFFSET = CFrame.new(-0.38, -1.05, -0.35)
 local lastCameraCF = workspace.CurrentCamera.CFrame
 local CurrentCamera = workspace.CurrentCamera
 local DefaultFOV = CurrentCamera.FieldOfView
+
+local swayOffset = Spring.new(0.75, 4, Vector3.new())
+local swayAmount = Vector2.new(.8, .8)
+local swayOffsetVec
+
+local swayOffset_ = CFrame.new()
+local multiplier_ = .3
 
 -- ## ASSETS ## --
 local Assets = ReplicatedStorage.Assets
@@ -44,6 +50,9 @@ local IsInspecting = false
 local IsShooting = false
 local ShootingCooldown = false
 
+-- ## TWEEN INFO ## --
+local Info = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+
 -- ## MODULE ## --
 local ViewModelController = Knit.CreateController {
 	Name = "ViewModelController",
@@ -52,6 +61,8 @@ local ViewModelController = Knit.CreateController {
 	Arms = nil,
 	Handle = nil,
 	AimPart = nil,
+	AimOffset = nil,
+	FirePoint = nil,
 	Animator = nil,
 	ArmsConfigFolder = nil,
 	ArmsModule = nil,
@@ -73,12 +84,27 @@ local function ShootingCooldownCountdown(Timer, NewValue)
 end
 
 function ViewModelController:Aim()
-	if self.Arms ~= nil then
-		local HandleTransform = self.Arms:GetPrimaryPartCFrame():ToObjectSpace(self.Handle.CFrame)
-		local OriginalTransform = HandleTransform * HandleTransform:Inverse()
-		local AimTransform = self.AimPart.CFrame:ToObjectSpace(self.Handle.CFrame) * HandleTransform:Inverse()
+	TweenService:Create(CurrentCamera, Info, {FieldOfView = 50}):Play()
 
-		self.Arms:GetPrimaryPartCFrame(CFrame:Lerp(AimTransform.Position))
+	if self.WeaponModel ~= nil then
+		local AimPoint = self.WeaponModel.PrimaryPart:FindFirstChild("AimPoint")
+
+		if AimPoint then
+			self.AimOffset = AimPoint.CFrame
+		else
+			self.AimOffset = CFrame_Zero
+		end
+	
+		local swayCFrame = CFrame.Angles(swayOffsetVec.Y, 0, 0) * CFrame.Angles(0, -swayOffsetVec.X, 0) * CFrame.Angles(0, 0, -swayOffsetVec.X)
+		local rootCFrame = CurrentCamera.CFrame * self.ArmsModule.ViewModelOffset * (swayOffset_:Lerp(CFrame.new(), 2))
+		local baseCFrame = CurrentCamera.CFrame * self.AimOffset * ANIMATION_AIM_OFFSET
+	
+		baseCFrame *= swayCFrame:Lerp(CFrame.new(), 0.5)
+	
+		rootCFrame = rootCFrame:Lerp(baseCFrame, .1)
+		self.Arms.PrimaryPart.CFrame = rootCFrame
+	
+		UserInputService.MouseIconEnabled = self.ArmsModule.WhileAimingIsCursorVisible
 	end
 end
 
@@ -86,59 +112,77 @@ function ViewModelController:RenderStepped()
 	RunService.RenderStepped:Connect(function(deltaTime)
 		if self.Arms == nil then return end
 
-		SetArms()
+		SetArms(deltaTime)
 
 		if IsAiming == false then
+			if CurrentCamera.FieldOfView < 60 then
+				TweenService:Create(CurrentCamera, Info, {FieldOfView = 60}):Play()
+			end
+			UserInputService.MouseIconEnabled = self.ArmsModule.WhileNotAimingIsCursorVisible
 			CharacterAnimationsController:PlayAnimation("VM_"..self.Arms.Name.."Idle", true)
-		else
+		elseif IsAiming == true then
 			self:Aim()
 		end
 
 		-- ## Shooting ## --
 
-		if IsShooting == true and ShootingCooldown == false and self.ArmsConfigFolder.Ammo.Value > 0 then
+		if IsShooting == true and ShootingCooldown == false and self.ArmsConfigFolder.Ammo.Value > 0 and self.FirePoint ~= nil then
 			ShootingCooldown = true
-			ViewModelService.WeaponFire:Fire(Character, PlayerMouse.Hit.Position, CurrentCamera.CFrame.LookVector, self.Arms.Name)
+			ViewModelService.WeaponFire:Fire(Character, self.FirePoint.CFrame.Position, CurrentCamera.CFrame.LookVector, self.Arms.Name)
 			CharacterAnimationsController:StopAllAnimationsAndPlay("VM_"..self.Arms.Name.."Fire")
 			self.ArmsConfigFolder.Ammo.Value -= 1
 			print(self.ArmsConfigFolder.Ammo.Value)
 			coroutine.wrap(ShootingCooldownCountdown)(self.ArmsModule["FireDelay"], false)
+			CharacterAnimationsController:PlayAnimation("VM_"..self.Arms.Name.."Idle", true)
 		end
 	end)
 end
 
 -- ## ARMS ## --
-function SetArms()
+function SetArms(dt)
 	ViewModelController.Arms:SetPrimaryPartCFrame(CurrentCamera.CFrame)
+	swayOffsetVec = swayOffset:Update(dt)
+	swayOffset.g = Vector3.new(
+		math.rad(math.clamp(swayAmount.X, -18, 18) / 18) * 10,
+		math.rad(math.clamp(swayAmount.Y, -18, 18) / 18) * 10,
+		0
+	)
+
 	local rotation = workspace.CurrentCamera.CFrame:toObjectSpace(lastCameraCF)
 	local x,y,z = rotation:ToOrientation()
-	swayOffset = swayOffset:Lerp(CFrame.Angles(math.sin(x) * multiplier, math.sin(y) * multiplier, 0), 0.1)
-	ViewModelController.Arms.PrimaryPart.CFrame *= swayOffset
+	swayOffset_ = swayOffset_:Lerp(CFrame.Angles(math.sin(x) * multiplier_, math.sin(y) * multiplier_, 0), 0.1)
+	ViewModelController.Arms.PrimaryPart.CFrame *= swayOffset_
 	lastCameraCF = workspace.CurrentCamera.CFrame
 end
 
 function ViewModelController:SetNewWeapon(WeaponName)
-	ViewModelService.SetNewWeapon:Fire(WeaponName)
 	if self.Arms ~= nil then self.Arms:Destroy() end
 
 	local Arms = Assets.Weapons:FindFirstChild(WeaponName):Clone()
 	Arms.Parent = workspace.CurrentCamera
 	self.Arms = Arms
 
-	self.WeaponModel = self.Arms:FindFirstChild("Gun")
-	self.ArmsConfigFolder = self.Arms.Configuration
-	self.ArmsModule = WeaponProperties[self.Arms.Name]
-	self.AimPart = self.Arms.PrimaryPart
-	self.Handle = self.Arms:FindFirstChild("Gun"):FindFirstChild("Handle")
-	self.Animator = self.Arms:FindFirstAncestorOfClass("AnimationController"):FindFirstAncestorOfClass("Animator")
-	
+	ViewModelService.SetNewWeapon:Fire(WeaponName)
+
+	local gun = Arms:FindFirstChild("Gun")
+
+	task.wait()
+
+	self.WeaponModel = Arms:FindFirstChild("Gun")
+	self.ArmsConfigFolder = Arms.Configuration
+	self.ArmsModule = WeaponProperties[Arms.Name]
+	self.Animator = Arms:FindFirstChildOfClass("AnimationController"):FindFirstChildOfClass("Animator")
+
+	if gun then  	
+		self.FirePoint = gun:WaitForChild("FirePoint")
+		self.AimPart = gun.PrimaryPart
+		self.Handle = gun:WaitForChild("Handle")
+	end
+
 	CharacterAnimationsController:SetAnimator(self.Animator)
 	CharacterAnimationsController:LoadAllAnimations()
 
-	print(self)
-
 	PlayerMouse.TargetFilter = self.Arms
-	return
 end
 
 -- ## Mouse ## --
@@ -202,7 +246,7 @@ function ViewModelController:KnitInit()
 	CharacterAnimationsController = Knit.GetController("CharacterAnimations")
 	AudioService = Knit.GetService("AudioService")
 	ViewModelService = Knit.GetService("ViewModelService")
-	
+
 	self:SetNewWeapon("Arms")
 	self:RenderStepped()
 	self:MouseButtonManager()
@@ -214,7 +258,7 @@ function ViewModelController:KnitInit()
 			if self.Arms.Name == "M4" then
 				self:SetNewWeapon("AK")
 			elseif self.Arms.Name == "AK" then
-				self:SetNewWeapon("Arms")
+				self:SetNewWeapon("M4")
 			elseif self.Arms.Name == "Arms" then
 				self:SetNewWeapon("M4")
 			end
@@ -224,6 +268,8 @@ function ViewModelController:KnitInit()
 				local Beam = self.WeaponModel:FindFirstChild("Handle"):FindFirstChildOfClass("Beam")
 				if Light then Light.Enabled = not Light.Enabled end
 				if Beam then Beam.Enabled = Light.Enabled end
+			elseif self.GunAttachments.UnderBarrel == "Laser" then
+				warn("PEW PEW")
 			end
 		end
 	end)
