@@ -11,6 +11,8 @@ local Player = Players.LocalPlayer
 local PlayerMouse = Player:GetMouse()
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local Head = Character:WaitForChild("Head")
 local CharacterAnimator = Humanoid:WaitForChild("Animator")
 
 -- ## MODULES ## --
@@ -20,6 +22,7 @@ local ParticleController
 local CharacterAnimationsController
 local AudioService
 local ViewModelService
+local WeaponProperties = require(ReplicatedStorage.Dictionaries.WeaponProperties)
 
 -- ## MATH ## --
 local raycastParams = RaycastParams.new()
@@ -46,16 +49,23 @@ local ViewModelController = Knit.CreateController {
 	Name = "ViewModelController",
 	DefaultFOV = DefaultFOV,
 	Arms = nil,
+	ArmsConfigFolder = nil,
+	ArmsModule = nil,
 	WeaponModel = nil,
 	LoadedAnimations = {},
 	GunAttachments = {
 		Scope = nil,
 		Mag = nil,
 		Stock = nil,
-		UnderBarrel = "FlashLight",
+		UnderBarrel = "FlashLight", -- "FlashLight"
 		Barrel = nil,
 	}
 }
+
+local function ShootingCooldownCountdown(Timer, NewValue)
+	task.wait(Timer)
+	ShootingCooldown = NewValue
+end
 
 function ViewModelController:RenderStepped()
 	ParticleController = Knit.GetController("ParticleController")
@@ -66,10 +76,24 @@ function ViewModelController:RenderStepped()
 	RunService.RenderStepped:Connect(function(deltaTime)
 		SetArms()
 
-		CharacterAnimationsController:PlayAnimation("VM_"..self.Arms.Name.."Idle", true)
+		if IsAiming == false then
+			CharacterAnimationsController:PlayAnimation("VM_"..self.Arms.Name.."Idle", true)
+		end
+
+		-- ## Shooting ## --
+
+		if IsShooting == true and ShootingCooldown == false and self.ArmsConfigFolder.Ammo.Value > 0 then
+			ShootingCooldown = true
+			ViewModelService.WeaponFire:Fire(Character, PlayerMouse.Hit.Position, CurrentCamera.CFrame.LookVector, self.Arms.Name)
+			CharacterAnimationsController:StopAllAnimationsAndPlay("VM_"..self.Arms.Name.."Fire")
+			self.ArmsConfigFolder.Ammo.Value -= 1
+			print(self.ArmsConfigFolder.Ammo.Value)
+			coroutine.wrap(ShootingCooldownCountdown)(self.ArmsModule["FireDelay"], false)
+		end
 	end)
 end
 
+-- ## ARMS ## --
 function SetArms()
 	ViewModelController.Arms:SetPrimaryPartCFrame(CurrentCamera.CFrame)
 	local rotation = workspace.CurrentCamera.CFrame:toObjectSpace(lastCameraCF)
@@ -83,26 +107,23 @@ function ViewModelController:SetNewWeapon(WeaponName)
 	ViewModelService.SetNewWeapon:Fire(WeaponName)
 	if self.Arms ~= nil then self.Arms:Destroy() end
 
-	if WeaponName == "Arms" then 
-		local Arms = Assets.Arms.Arms:Clone() 
-		Arms.Parent = workspace.CurrentCamera 
-		self.Arms = Arms 
-		self.WeaponModel = nil 
-	else
-		local Arms = Assets.Weapons:FindFirstChild(WeaponName):Clone()
-		Arms.Parent = workspace.CurrentCamera
-		self.Arms = Arms
+	local Arms = Assets.Weapons:FindFirstChild(WeaponName):Clone()
+	Arms.Parent = workspace.CurrentCamera
+	self.Arms = Arms
 
-		self.WeaponModel = self.Arms:FindFirstChild("Gun")
-	end
+	self.WeaponModel = self.Arms:FindFirstChild("Gun")
+	self.ArmsConfigFolder = self.Arms.Configuration
+	self.ArmsModule = WeaponProperties[Arms.Name]
 
 	CharacterAnimationsController:SetAnimator(self.Arms.AnimationController.Animator)
 	CharacterAnimationsController:ClearLoadedAnimations()
 	CharacterAnimationsController:LoadAllAnimations()
 
+	PlayerMouse.TargetFilter = self.Arms
 	return
 end
 
+-- ## Mouse ## --
 function ViewModelController:SetMouseIcon(ID)
 	local HasString = ID:match("rbxassetid://")
 	print(HasString)
@@ -113,9 +134,54 @@ function ViewModelController:SetMouseIcon(ID)
 	end
 end
 
+function ViewModelController:MouseButton(Action, Button)
+	if self.Arms == nil then return end
+
+	if Action == "Up" then
+		if Button == "Left" then
+			IsShooting = false
+		end
+
+		if Button == "Right" then
+			IsAiming = false
+		end
+	end
+
+	if Action == "Down" then
+		if Button == "Left" then
+			IsShooting = true
+		end
+
+		if Button == "Right" then
+			IsAiming = true
+		end
+	end
+end
+
+function ViewModelController:MouseButtonManager()
+	-- ## LEFT MOUSE BUTTON ## --
+	PlayerMouse.Button1Down:Connect(function()
+		self:MouseButton("Down", "Left")
+	end)
+
+	PlayerMouse.Button1Up:Connect(function()
+		self:MouseButton("Up", "Left")
+	end)
+
+	-- ## RIGHT MOUSE BUTTON ## --
+	PlayerMouse.Button2Down:Connect(function()
+		self:MouseButton("Down", "Right")
+	end)
+
+	PlayerMouse.Button2Up:Connect(function()
+		self:MouseButton("Up", "Right")
+	end)
+end
+
 function ViewModelController:KnitInit()
 	self:RenderStepped()
 	self:SetNewWeapon("Arms")
+	self:MouseButtonManager()
 
 	UserInputService.InputBegan:Connect(function(input)
 		if input.KeyCode == Enum.KeyCode.R then
