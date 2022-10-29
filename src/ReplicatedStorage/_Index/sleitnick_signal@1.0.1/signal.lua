@@ -14,7 +14,7 @@
 --   sig:Fire(arg1, arg2, ...)                                                --
 --   connection:Disconnect()                                                  --
 --   sig:DisconnectAll()                                                      --
---   local arg1, arg2, ... = sig:wait()                                       --
+--   local arg1, arg2, ... = sig:Wait()                                       --
 --                                                                            --
 -- Licence:                                                                   --
 --   Licenced under the MIT licence.                                          --
@@ -249,7 +249,7 @@ end
 	@return ... any -- Arguments passed to the signal when it was fired
 	@yields
 ]=]
-function Signal:wait()
+function Signal:Wait()
 	local waitingCoroutine = coroutine.running()
 	local cn
 	cn = self:Connect(function(...)

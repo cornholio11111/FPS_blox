@@ -5,13 +5,16 @@ local ServerServices = game:GetService('ServerStorage')
 
 local Knit = require(ReplicatedStorage:WaitForChild("Packages").Knit)
 
-local Assets = ReplicatedStorage.Assets
-local Animations = Assets.Animations
+local Assets = ReplicatedStorage:WaitForChild("Assets")
+local Animations = Assets:WaitForChild("Animations")
 
 local AnimationsController = Knit.CreateController({
 	Name = "CharacterAnimations",
 	Animator = nil,
-	LoadedAnimations = {},
+	LoadedAnimations = {
+		VM = {},
+		Character = {},
+	},
 })
 
 function AnimationsController:ClearLoadedAnimations()

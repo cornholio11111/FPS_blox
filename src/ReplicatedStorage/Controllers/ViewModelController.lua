@@ -48,10 +48,15 @@ local ShootingCooldown = false
 local ViewModelController = Knit.CreateController {
 	Name = "ViewModelController",
 	DefaultFOV = DefaultFOV,
+
 	Arms = nil,
+	Handle = nil,
+	AimPart = nil,
+	Animator = nil,
 	ArmsConfigFolder = nil,
 	ArmsModule = nil,
 	WeaponModel = nil,
+
 	LoadedAnimations = {},
 	GunAttachments = {
 		Scope = nil,
@@ -67,17 +72,26 @@ local function ShootingCooldownCountdown(Timer, NewValue)
 	ShootingCooldown = NewValue
 end
 
-function ViewModelController:RenderStepped()
-	ParticleController = Knit.GetController("ParticleController")
-	CharacterAnimationsController = Knit.GetController("CharacterAnimations")
-	AudioService = Knit.GetService("AudioService")
-	ViewModelService = Knit.GetService("ViewModelService")
+function ViewModelController:Aim()
+	if self.Arms ~= nil then
+		local HandleTransform = self.Arms:GetPrimaryPartCFrame():ToObjectSpace(self.Handle.CFrame)
+		local OriginalTransform = HandleTransform * HandleTransform:Inverse()
+		local AimTransform = self.AimPart.CFrame:ToObjectSpace(self.Handle.CFrame) * HandleTransform:Inverse()
 
+		self.Arms:GetPrimaryPartCFrame(CFrame:Lerp(AimTransform.Position))
+	end
+end
+
+function ViewModelController:RenderStepped()
 	RunService.RenderStepped:Connect(function(deltaTime)
+		if self.Arms == nil then return end
+
 		SetArms()
 
 		if IsAiming == false then
 			CharacterAnimationsController:PlayAnimation("VM_"..self.Arms.Name.."Idle", true)
+		else
+			self:Aim()
 		end
 
 		-- ## Shooting ## --
@@ -113,11 +127,15 @@ function ViewModelController:SetNewWeapon(WeaponName)
 
 	self.WeaponModel = self.Arms:FindFirstChild("Gun")
 	self.ArmsConfigFolder = self.Arms.Configuration
-	self.ArmsModule = WeaponProperties[Arms.Name]
-
-	CharacterAnimationsController:SetAnimator(self.Arms.AnimationController.Animator)
-	CharacterAnimationsController:ClearLoadedAnimations()
+	self.ArmsModule = WeaponProperties[self.Arms.Name]
+	self.AimPart = self.Arms.PrimaryPart
+	self.Handle = self.Arms:FindFirstChild("Gun"):FindFirstChild("Handle")
+	self.Animator = self.Arms:FindFirstAncestorOfClass("AnimationController"):FindFirstAncestorOfClass("Animator")
+	
+	CharacterAnimationsController:SetAnimator(self.Animator)
 	CharacterAnimationsController:LoadAllAnimations()
+
+	print(self)
 
 	PlayerMouse.TargetFilter = self.Arms
 	return
@@ -179,8 +197,14 @@ function ViewModelController:MouseButtonManager()
 end
 
 function ViewModelController:KnitInit()
-	self:RenderStepped()
+	task.wait(.2)
+	ParticleController = Knit.GetController("ParticleController")
+	CharacterAnimationsController = Knit.GetController("CharacterAnimations")
+	AudioService = Knit.GetService("AudioService")
+	ViewModelService = Knit.GetService("ViewModelService")
+	
 	self:SetNewWeapon("Arms")
+	self:RenderStepped()
 	self:MouseButtonManager()
 
 	UserInputService.InputBegan:Connect(function(input)
@@ -206,10 +230,8 @@ function ViewModelController:KnitInit()
 end
 
 function ViewModelController:KnitStart()
-	ViewModelController:SetMouseIcon("120192974")
-	CharacterAnimationsController:SetAnimator(self.Arms.AnimationController.Animator)
-	CharacterAnimationsController:LoadAllAnimations()
-	
+	self:SetMouseIcon("120192974")
+
 	warn('[DEBUG] Loaded Controller: ViewModelController')
 end
 

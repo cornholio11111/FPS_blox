@@ -313,7 +313,7 @@ end
 	```lua
 	local myFunction()
 		return Promise.new(function(resolve, reject, onCancel)
-			task.wait(1)
+			wait(1)
 			resolve("Hello world!")
 		end)
 	end
@@ -349,7 +349,7 @@ end
 	This is a spiritual replacement for `spawn`, but it does not suffer from the same [issues](https://eryn.io/gist/3db84579866c099cdd5bb2ff37947cec) as `spawn`.
 
 	```lua
-	local function WaitForChild(instance, childName, timeout)
+	local function waitForChild(instance, childName, timeout)
 	  return Promise.defer(function(resolve, reject)
 		local child = instance:WaitForChild(childName, timeout)
 
@@ -805,7 +805,7 @@ end
 --[=[
 	Iterates serially over the given an array of values, calling the predicate callback on each value before continuing.
 
-	If the predicate returns a Promise, we task.wait for that Promise to resolve before moving on to the next item
+	If the predicate returns a Promise, we wait for that Promise to resolve before moving on to the next item
 	in the array.
 
 	:::info
@@ -842,7 +842,7 @@ end
 
 	If the Promise a predicate returns rejects, the Promise from `Promise.each` is also rejected with the same value.
 
-	If the array of values contains a Promise, when we get to that point in the list, we task.wait for the Promise to resolve before calling the predicate with the value.
+	If the array of values contains a Promise, when we get to that point in the list, we wait for the Promise to resolve before calling the predicate with the value.
 
 	If a Promise in the array of values is already Rejected when `Promise.each` is called, `Promise.each` rejects with that value immediately (the predicate callback will never be called even once). If a Promise in the list is already Cancelled when `Promise.each` is called, `Promise.each` rejects with `Promise.Error(Promise.Error.Kind.AlreadyCancelled`). If a Promise in the array of values is Started at first, but later rejects, `Promise.each` will reject with that value and iteration will not continue once iteration encounters that value.
 
@@ -992,7 +992,7 @@ end
 	:::
 
 	```lua
-	local sleep = Promise.promisify(task.wait)
+	local sleep = Promise.promisify(wait)
 
 	sleep(1):andThen(print)
 	```
@@ -1013,9 +1013,9 @@ function Promise.promisify(callback)
 end
 
 --[=[
-	Returns a Promise that resolves after `seconds` seconds have passed. The Promise resolves with the actual amount of time that was task.waited.
+	Returns a Promise that resolves after `seconds` seconds have passed. The Promise resolves with the actual amount of time that was waited.
 
-	This function is **not** a wrapper around `task.wait`. `Promise.delay` uses a custom scheduler which provides more accurate timing. As an optimization, cancelling this Promise instantly removes the task from the scheduler.
+	This function is **not** a wrapper around `wait`. `Promise.delay` uses a custom scheduler which provides more accurate timing. As an optimization, cancelling this Promise instantly removes the task from the scheduler.
 
 	:::warning
 	Passing `NaN`, infinity, or a number less than 1/60 is equivalent to passing 1/60.
@@ -1040,7 +1040,7 @@ do
 	function Promise.delay(seconds)
 		assert(type(seconds) == "number", "Bad argument #1 to Promise.delay, must be a number.")
 		-- If seconds is -INF, INF, NaN, or less than 1 / 60, assume seconds is 1 / 60.
-		-- This mirrors the behavior of task.wait()
+		-- This mirrors the behavior of wait()
 		if not (seconds >= 1 / 60) or seconds == math.huge then
 			seconds = 1 / 60
 		end
@@ -1288,7 +1288,7 @@ end
 		end)
 	```
 
-	If you return a Promise from the tap handler callback, its value will be discarded but `tap` will still task.wait until it resolves before passing the original value through.
+	If you return a Promise from the tap handler callback, its value will be discarded but `tap` will still wait until it resolves before passing the original value through.
 
 	@param tapHandler (...: any) -> ...any
 	@return Promise<...any>
@@ -1609,7 +1609,7 @@ function Promise.prototype:awaitStatus()
 			bindable:Fire()
 		end)
 
-		bindable.Event:wait()
+		bindable.Event:Wait()
 		bindable:Destroy()
 	end
 
@@ -1630,7 +1630,7 @@ end
 	Yields the current thread until the given Promise completes. Returns true if the Promise resolved, followed by the values that the promise resolved or rejected with.
 
 	:::caution
-	If the Promise gets cancelled, this function will return `false`, which is indistinguishable from a rejection. If you need to differentiate, you should use [[Promise.waitwaitStatus]] instead.
+	If the Promise gets cancelled, this function will return `false`, which is indistinguishable from a rejection. If you need to differentiate, you should use [[Promise.awaitStatus]] instead.
 	:::
 
 	```lua
@@ -1796,13 +1796,13 @@ function Promise.prototype:_reject(...)
 	else
 		-- At this point, no one was able to observe the error.
 		-- An error handler might still be attached if the error occurred
-		-- synchronously. We'll task.wait one tick, and if there are still no
+		-- synchronously. We'll wait one tick, and if there are still no
 		-- observers, then we should put a message in the console.
 
 		local err = tostring((...))
 
 		coroutine.wrap(function()
-			Promise._timeEvent:wait()
+			Promise._timeEvent:Wait()
 
 			-- Someone observed the error, hooray!
 			if not self._unhandledRejection then
@@ -1928,7 +1928,7 @@ function Promise.retry(callback, times, ...)
 end
 
 --[=[
-	Repeatedly calls a Promise-returning function up to `times` number of times, task.waiting `seconds` seconds between each
+	Repeatedly calls a Promise-returning function up to `times` number of times, waiting `seconds` seconds between each
 	retry, until the returned Promise resolves.
 
 	If the amount of retries is exceeded, the function will return the latest rejected Promise.
@@ -1978,7 +1978,7 @@ end
 
 	@since 3.0.0
 	@param event Event -- Any object with a `Connect` method. This includes all Roblox events.
-	@param predicate? (...: P) -> boolean -- A function which determines if the Promise should resolve with the given value, or task.wait for the next event to check again.
+	@param predicate? (...: P) -> boolean -- A function which determines if the Promise should resolve with the given value, or wait for the next event to check again.
 	@return Promise<P>
 ]=]
 function Promise.fromEvent(event, predicate)
