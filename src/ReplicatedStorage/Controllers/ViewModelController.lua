@@ -5,9 +5,11 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
 
 -- ## PLAYER ## --
 local Player = Players.LocalPlayer
+local PlayerGui = Player.PlayerGui
 local PlayerMouse = Player:GetMouse()
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
@@ -19,6 +21,7 @@ local CharacterAnimator = Humanoid:WaitForChild("Animator")
 local Packages = ReplicatedStorage.Packages
 local Knit = require(Packages.Knit)
 local Spring = require(Packages.Knit.Spring)
+local CameraShaker = require(ReplicatedStorage.Dictionaries:WaitForChild("CameraShaker"))
 local ParticleController
 local CharacterAnimationsController
 local AudioService
@@ -78,6 +81,32 @@ local ViewModelController = Knit.CreateController {
 	}
 }
 
+local shake = CameraShaker.new(Enum.RenderPriority.Camera.Value, function(shakeCFrame)
+	CurrentCamera.CFrame *= shakeCFrame
+end)
+
+shake:Start()
+
+local function getDistanceFromEffect(core)
+	if core:IsA("BasePart") then
+		return Player:DistanceFromCharacter(core.Position)
+	else
+		return Player:DistanceFromCharacter(core.WorldPosition)
+	end
+end
+
+local function shakeCamera(core, maxDistance, magnitude, roughness, fadeInTime, fadeOutTime)
+	
+	local distanceAlpha = getDistanceFromEffect(core) / maxDistance
+	if distanceAlpha < 1 then
+		distanceAlpha = 1 - distanceAlpha
+		magnitude *= distanceAlpha
+		fadeInTime *= distanceAlpha
+		fadeOutTime *= distanceAlpha
+		shake:ShakeOnce(magnitude, roughness, fadeInTime, fadeOutTime)
+	end
+end
+
 local function ShootingCooldownCountdown(Timer, NewValue)
 	task.wait(Timer)
 	ShootingCooldown = NewValue
@@ -120,20 +149,33 @@ function ViewModelController:RenderStepped()
 			end
 			UserInputService.MouseIconEnabled = self.ArmsModule.WhileNotAimingIsCursorVisible
 			CharacterAnimationsController:PlayAnimation("VM_"..self.Arms.Name.."Idle", true)
+			ViewModelService.PlayAnimation:Fire(Character, "Char_"..self.Arms.Name.."Idle", true)
 		elseif IsAiming == true then
 			self:Aim()
 		end
 
-		-- ## Shooting ## --
+		local AmmoValue = self.ArmsConfigFolder:FindFirstChild("Ammo")
 
-		if IsShooting == true and ShootingCooldown == false and self.ArmsConfigFolder.Ammo.Value > 0 and self.FirePoint ~= nil then
+		-- ## GUI ## --
+		if self.ArmsConfigFolder ~= nil and AmmoValue then
+			task.wait(.1)
+			local AmmoText = AmmoValue.Value.." / "..self.ArmsModule.DefaultMagSize
+			PlayerGui:WaitForChild("Ammo"):WaitForChild("AmmoLabel").Text = AmmoText
+		else
+			PlayerGui:WaitForChild("Ammo"):WaitForChild("AmmoLabel").Text = "Error / Error"
+		end
+
+		-- ## Shooting ## --
+		if IsShooting == true and ShootingCooldown == false and IsReloading == false and IsInspecting == false and self.ArmsConfigFolder.Ammo.Value > 0 and self.FirePoint ~= nil then
 			ShootingCooldown = true
 			ViewModelService.WeaponFire:Fire(Character, self.FirePoint.CFrame.Position, CurrentCamera.CFrame.LookVector, self.Arms.Name)
 			CharacterAnimationsController:StopAllAnimationsAndPlay("VM_"..self.Arms.Name.."Fire")
+			ViewModelService.StopAllAnimationsAndPlay:Fire(Character, "VM_"..self.Arms.Name.."Fire", false)			
+			shakeCamera(self.Arms.PrimaryPart, 5, 1, 10, 0.1, 0.1)
 			self.ArmsConfigFolder.Ammo.Value -= 1
-			print(self.ArmsConfigFolder.Ammo.Value)
 			coroutine.wrap(ShootingCooldownCountdown)(self.ArmsModule["FireDelay"], false)
 			CharacterAnimationsController:PlayAnimation("VM_"..self.Arms.Name.."Idle", true)
+			ViewModelService.PlayAnimation:Fire(Character, "Char_"..self.Arms.Name.."Idle", true)
 		end
 	end)
 end
@@ -158,11 +200,13 @@ end
 function ViewModelController:SetNewWeapon(WeaponName)
 	if self.Arms ~= nil then self.Arms:Destroy() end
 
-	local Arms = Assets.Weapons:FindFirstChild(WeaponName):Clone()
+	self:SetMouseIcon("120192974")
+
+	local Arms = Assets.Weapons.ViewModel:FindFirstChild(WeaponName):Clone()
 	Arms.Parent = workspace.CurrentCamera
 	self.Arms = Arms
 
-	ViewModelService.SetNewWeapon:Fire(WeaponName)
+	ViewModelService.SetNewWeapon:Fire(Character, WeaponName)
 
 	local gun = Arms:FindFirstChild("Gun")
 
@@ -190,9 +234,13 @@ function ViewModelController:SetMouseIcon(ID)
 	local HasString = ID:match("rbxassetid://")
 	print(HasString)
 	if HasString == true then
-		PlayerMouse.Icon = ID
+		if PlayerMouse.Icon ~= ID then
+			PlayerMouse.Icon = ID
+		end
 	else
-		PlayerMouse.Icon = 'rbxassetid://'..ID
+		if PlayerMouse.Icon ~= 'rbxassetid://'..ID then
+			PlayerMouse.Icon = 'rbxassetid://'..ID
+		end
 	end
 end
 
@@ -240,6 +288,36 @@ function ViewModelController:MouseButtonManager()
 	end)
 end
 
+function ViewModelController:Reload()
+	if IsShooting == false and IsAiming == false and IsReloading == false and IsInspecting == false then
+		if self.ArmsConfigFolder.Ammo.Value < self.ArmsModule.DefaultMagSize and self.ArmsConfigFolder.Ammo:GetAttribute("ReservedAmmo") > 0 then
+			IsReloading = true
+
+			CharacterAnimationsController:StopAllAnimationsAndPlay("VM_"..self.Arms.Name.."Reload")
+			ViewModelService.StopAllAnimationsAndPlay:Fire(Character, "Char_"..self.Arms.Name.."Reload", true)
+			local Properties = CharacterAnimationsController:GetProperties("VM_"..self.Arms.Name.."Reload")
+			task.wait(Properties.Length)
+			local NewAmmoCount = self.ArmsConfigFolder.Ammo:GetAttribute("ReservedAmmo") - (self.ArmsModule.DefaultMagSize - self.ArmsConfigFolder.Ammo.Value)
+			self.ArmsConfigFolder.Ammo:SetAttribute("ReservedAmmo", NewAmmoCount)
+			self.ArmsConfigFolder.Ammo.Value = self.ArmsModule.DefaultMagSize
+			task.wait(.1)
+			IsReloading = false
+		end
+	end
+end
+
+function ViewModelController:Inspect()
+	if IsShooting == false and IsAiming == false and IsReloading == false and IsInspecting == false then
+		IsInspecting = true
+
+		CharacterAnimationsController:StopAllAnimationsAndPlay("VM_"..self.Arms.Name.."Inspect")
+		ViewModelService.PlayAnimation:Fire(Character, "Char_"..self.Arms.Name.."Inspect", true)
+		local Properties = CharacterAnimationsController:GetProperties("VM_"..self.Arms.Name.."Inspect")
+		task.wait(Properties.Length)
+		IsInspecting = false
+	end
+end
+
 function ViewModelController:KnitInit()
 	task.wait(.2)
 	ParticleController = Knit.GetController("ParticleController")
@@ -253,15 +331,9 @@ function ViewModelController:KnitInit()
 
 	UserInputService.InputBegan:Connect(function(input)
 		if input.KeyCode == Enum.KeyCode.R then
-
+			self:Reload()
 		elseif input.KeyCode == Enum.KeyCode.I then
-			if self.Arms.Name == "M4" then
-				self:SetNewWeapon("AK")
-			elseif self.Arms.Name == "AK" then
-				self:SetNewWeapon("M4")
-			elseif self.Arms.Name == "Arms" then
-				self:SetNewWeapon("M4")
-			end
+			self:Inspect()
 		elseif input.KeyCode == Enum.KeyCode.F then
 			if self.GunAttachments.UnderBarrel == "FlashLight" then
 				local Light = self.WeaponModel:FindFirstChild("Handle"):FindFirstChild("FlashlightAttachment"):FindFirstChildOfClass("SpotLight")
@@ -271,8 +343,16 @@ function ViewModelController:KnitInit()
 			elseif self.GunAttachments.UnderBarrel == "Laser" then
 				warn("PEW PEW")
 			end
-		end
-	end)
+			elseif input.KeyCode == Enum.KeyCode.H then
+				if self.Arms.Name == "M4" then
+					self:SetNewWeapon("AK")
+				elseif self.Arms.Name == "AK" then
+					self:SetNewWeapon("M4")
+				elseif self.Arms.Name == "Arms" then
+					self:SetNewWeapon("M4")
+				end
+			end
+		end)
 end
 
 function ViewModelController:KnitStart()

@@ -36,6 +36,12 @@ function AnimationsController:PlayAnimation(animationName, loop)
 	Animation:Play()
 end
 
+function AnimationsController:GetProperties(animationName)
+	local Animation = assert(self.LoadedAnimations[animationName],
+		string.format("invalid animation name \"%s\"", animationName))
+	return Animation
+end
+
 
 function AnimationsController:StopAnimation(animationName)
 	local Animation = assert(self.LoadedAnimations[animationName],
